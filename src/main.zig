@@ -5,10 +5,15 @@ const sudoku_solver = @import("sudoku_solver");
 
 var debug = std.heap.DebugAllocator(.{}){};
 const allocator = debug.allocator();
+const board_setup = @import("board_setup.zig");
 
 pub fn main() !void {
     // Prints to stderr, ignoring potential errors.
-    std.debug.print("All your {s} are belong to us.\n", .{"codebase"});
+    //std.debug.print("All your {s} are belong to us.\n", .{"codebase"});
+
+    const board = board_setup.Board.initRandom();
+    board.print();
+
     try sudoku_solver.bufferedPrint();
 }
 
