@@ -13,46 +13,6 @@ var debug = std.heap.DebugAllocator(.{}){};
 
 const alloc_debug = debug.allocator();
 
-//pub fn main() !void {
-    // Prints to stderr, ignoring potential errors.
-    
-    // var board = Board_Setup.Board.initRandomPuzzle(40);
-
-    // board.print();
-
-    //var args = std.process.args();
-    //_ = args.next();
-    //const filename = args.next() orelse {
-    //    std.debug.print("Usage: sudoku_solver <filename>\n", .{});
-    //    return;
-    //};
-
-    //const file = fs.cwd().openFile(filename, .{}) catch |err| {
-    //    std.debug.print("Error: {}\n", .{err});
-    //    return;
-    //};
-
-    //const puzzle = readPuzzle(file) catch |err| {
-    //    std.debug.print("Error: {}\n", .{err});
-    //    return;
-    //};
-
-    //var sudoku = Sudoku.init(filename, puzzle) catch {
-    //    std.debug.print("Error: failed initializing sudoku puzzle", .{});
-    //    return;
-    //};
-    //std.debug.print("{s}\n", .{filename});
-
-    //const sudoku_solved = solve(&sudoku);
-    //if (sudoku_solved) |solved| {
-    //    solved.print();
-    //} else {
-    //    std.debug.print("No Solution\n", .{});
-    //}
-    
-    
-
-//}
 
 pub fn main() !void {
     // Generate a puzzle (remove amount of cells given by parameter)
