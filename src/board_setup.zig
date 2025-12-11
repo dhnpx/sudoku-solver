@@ -32,10 +32,36 @@ pub const Board = struct {
                 if (c != 0 and c % 3 == 0) {
                     std.debug.print("| ", .{});
                 }
+
+                if (val == 0) {
+                    // Empty cell
+                    std.debug.print(". ", .{});
+                }
+
+                else {
+
                 std.debug.print("{d} ", .{val});
+                }
             }
             std.debug.print("\n", .{});
         }
+    }
+
+        pub fn initRandomPuzzle(hole_count: usize) Board {
+        // Start from a fully solved random board
+        var board = Board.initRandom();
+
+        var seed: u64 = 0;
+        std.crypto.random.bytes(std.mem.asBytes(&seed));
+
+        var prng = std.Random.DefaultPrng.init(seed);
+        const random = prng.random();
+
+        var holes = hole_count;
+        if (holes > 81) holes = 81;
+
+        board.makeBlanks(random, holes);
+        return board;
     }
 
     // ---------- internal helpers ----------
@@ -56,6 +82,21 @@ pub const Board = struct {
             .{ 9, 1, 2, 3, 4, 5, 6, 7, 8 },
         };
         return .{ .cells = base };
+    }
+
+        fn makeBlanks(self: *Board, random: std.Random, hole_count: usize) void {
+        var remaining = hole_count;
+
+        // Keep picking random positions until its cleared enough cells.
+        while (remaining > 0) {
+            const r = random.uintLessThan(usize, 9);
+            const c = random.uintLessThan(usize, 9);
+
+            if (self.cells[r][c] != 0) {
+                self.cells[r][c] = 0;
+                remaining -= 1;
+            }
+        }
     }
 
     fn randomizeDigits(self: *Board, random: std.Random) void {

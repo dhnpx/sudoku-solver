@@ -5,6 +5,7 @@ const Sudoku = @import("sudoku.zig").Sudoku;
 const UnitType = @import("sudoku.zig").UnitType;
 const Pair = @import("sudoku.zig").Pair;
 const Triple = @import("sudoku.zig").Triple;
+const Board_Setup = @import("board_setup.zig");
 
 const sudoku_solver = @import("sudoku_solver");
 
@@ -14,6 +15,11 @@ const alloc_debug = debug.allocator();
 
 pub fn main() !void {
     // Prints to stderr, ignoring potential errors.
+    
+    // var board = Board_Setup.Board.initRandomPuzzle(40);
+
+    // board.print();
+
     var args = std.process.args();
     _ = args.next();
     const filename = args.next() orelse {
