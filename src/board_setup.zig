@@ -1,5 +1,6 @@
 const std = @import("std");
 
+
 pub const Board = struct {
     cells: [9][9]u4,
 
@@ -22,7 +23,22 @@ pub const Board = struct {
         return board;
     }
 
-    /// Print the board to the terminal using std.debug.print.
+    pub fn toSudokuPuzzle(self: *const Board) [10][10]u4 {
+        var puzzle: [10][10]u4 = std.mem.zeroes([10][10]u4);
+
+        var r: usize = 0;
+        while (r < 9) : (r += 1) {
+            var c: usize = 0;
+            while (c < 9) : (c += 1) {
+                // shift puzzle into [1..9][1..9]
+                puzzle[r + 1][c + 1] = self.cells[r][c];
+            }
+        }
+
+        return puzzle;
+   }
+
+    // Print the board to the terminal using std.debug.print
     pub fn print(self: *const Board) void {
         for (self.cells, 0..) |row, r| {
             if (r != 0 and r % 3 == 0) {

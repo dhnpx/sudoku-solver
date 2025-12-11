@@ -7,6 +7,7 @@ pub const UnitType = enum { Row, Column, Block };
 var debug = std.heap.DebugAllocator(.{}){};
 const alloc_debug = debug.allocator();
 
+
 pub const Sudoku = struct {
     filename: [:0]const u8,
     puzzle: [10][10]u4 = std.mem.zeroes([10][10]u4),

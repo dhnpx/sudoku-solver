@@ -13,43 +13,93 @@ var debug = std.heap.DebugAllocator(.{}){};
 
 const alloc_debug = debug.allocator();
 
-pub fn main() !void {
+//pub fn main() !void {
     // Prints to stderr, ignoring potential errors.
     
     // var board = Board_Setup.Board.initRandomPuzzle(40);
 
     // board.print();
 
-    var args = std.process.args();
-    _ = args.next();
-    const filename = args.next() orelse {
-        std.debug.print("Usage: sudoku_solver <filename>\n", .{});
-        return;
-    };
+    //var args = std.process.args();
+    //_ = args.next();
+    //const filename = args.next() orelse {
+    //    std.debug.print("Usage: sudoku_solver <filename>\n", .{});
+    //    return;
+    //};
 
-    const file = fs.cwd().openFile(filename, .{}) catch |err| {
-        std.debug.print("Error: {}\n", .{err});
-        return;
-    };
+    //const file = fs.cwd().openFile(filename, .{}) catch |err| {
+    //    std.debug.print("Error: {}\n", .{err});
+    //    return;
+    //};
 
-    const puzzle = readPuzzle(file) catch |err| {
-        std.debug.print("Error: {}\n", .{err});
-        return;
-    };
+    //const puzzle = readPuzzle(file) catch |err| {
+    //    std.debug.print("Error: {}\n", .{err});
+    //    return;
+    //};
+
+    //var sudoku = Sudoku.init(filename, puzzle) catch {
+    //    std.debug.print("Error: failed initializing sudoku puzzle", .{});
+    //    return;
+    //};
+    //std.debug.print("{s}\n", .{filename});
+
+    //const sudoku_solved = solve(&sudoku);
+    //if (sudoku_solved) |solved| {
+    //    solved.print();
+    //} else {
+    //    std.debug.print("No Solution\n", .{});
+    //}
+    
+    
+
+//}
+
+pub fn main() !void {
+    // Generate a puzzle (remove amount of cells given by parameter)
+    var board = Board_Setup.Board.initRandomPuzzle(40);
+
+    std.debug.print("Generated puzzle:\n", .{});
+    board.print();
+
+    
+    const puzzle = board.toSudokuPuzzle();
+
+    
+    const filename: [:0]const u8 = "generated\n";
 
     var sudoku = Sudoku.init(filename, puzzle) catch {
-        std.debug.print("Error: failed initializing sudoku puzzle", .{});
+        std.debug.print("Error: failed initializing sudoku puzzle\n", .{});
         return;
     };
-    std.debug.print("{s}\n", .{filename});
 
+    
     const sudoku_solved = solve(&sudoku);
+
     if (sudoku_solved) |solved| {
-        solved.print();
+        std.debug.print("\nSolved puzzle:\n", .{});
+        printSudokuGrid(solved.puzzle);
     } else {
         std.debug.print("No Solution\n", .{});
     }
 }
+
+fn printSudokuGrid(grid: [10][10]u4) void {
+    for (1..10) |r| {
+        if (r != 1 and (r - 1) % 3 == 0) {
+            std.debug.print("------+-------+------\n", .{});
+        }
+        for (1..10) |c| {
+            if (c != 1 and (c - 1) % 3 == 0) {
+                std.debug.print("| ", .{});
+            }
+
+            const val = grid[r][c];
+            std.debug.print("{d} ", .{val});
+        }
+        std.debug.print("\n", .{});
+    }
+}
+
 fn reduceCandidates(sudoku: *Sudoku) bool {
     var non_stable = true;
     while (non_stable) {
@@ -297,8 +347,10 @@ fn solve(sudoku: *Sudoku) ?Sudoku {
                 var sudoku_new = sudoku.clone() catch {
                     return null;
                 };
+
                 sudoku_new.setCellValue(cell.row, cell.col, val);
                 const solved = solve(&sudoku_new);
+
                 if (solved) |solution| {
                     var solution_mut = solution;
                     if (solution_mut.isSolved()) {
