@@ -30,27 +30,24 @@ pub fn main() !void {
         return;
     };
 
-    var sudoku = Sudoku.init(filename, puzzle);
-
+    var sudoku = Sudoku.init(filename, puzzle) catch {
+        std.debug.print("Error: failed initializing sudoku puzzle", .{});
+        return;
+    };
     std.debug.print("{s}\n", .{filename});
 
-    const sudoku_solved = solve(sudoku);
+    const sudoku_solved = solve(&sudoku);
     if (sudoku_solved) |solved| {
         solved.print();
     } else {
         std.debug.print("No Solution\n", .{});
     }
-
-    sudoku.print();
 }
-fn reduceCandidates(sudoku: Sudoku) bool {
+fn reduceCandidates(sudoku: *Sudoku) bool {
     var non_stable = true;
     while (non_stable) {
         non_stable = false;
         const non_assigned_cells = sudoku.non_assigned_cells;
-        if (non_assigned_cells.capacity == 0) {
-            return false;
-        }
 
         if (non_assigned_cells.items.len == 0) {
             return true;
@@ -60,35 +57,36 @@ fn reduceCandidates(sudoku: Sudoku) bool {
             const row = cell.row;
             const col = cell.col;
             for (std.enums.values(UnitType)) |unit| {
-                const unit_cells = try sudoku.getUnitCells(row, col, unit) catch |err| {
-                    return err;
+                const unit_cells = sudoku.getUnitCells(row, col, unit) catch {
+                    return false;
                 };
                 for (unit_cells.items) |unit_cell| {
-                    if (sudoku.puzzle[row][col] != 0) {
+                    if (sudoku.puzzle[unit_cell.row][unit_cell.col] != 0) {
                         sudoku.removeCellCandidate(row, col, sudoku.puzzle[unit_cell.row][unit_cell.col]);
                     }
                 }
             }
             if (sudoku.isConstraintEmpty(row, col)) {
                 return false;
-            } else if (sudoku.getCellCandidates(row, col).items.len == 1) {
-                sudoku.setCellValue(row, col, sudoku.getCellCandidates(row, col)[0]);
-                non_stable = true;
+            } else {
+                const vals = sudoku.getCellCandidates(row, col) catch {
+                    return false;
+                };
+                if (vals.items.len == 1) {
+                    sudoku.setCellValue(row, col, vals.items[0]);
+                    non_stable = true;
+                }
             }
         }
     }
     return true;
 }
 
-fn uniqueCandidate(sudoku: Sudoku) bool {
+fn uniqueCandidate(sudoku: *Sudoku) bool {
     var non_stable = true;
     while (non_stable) {
         non_stable = false;
         const non_assigned_cells = sudoku.non_assigned_cells;
-
-        if (non_assigned_cells.capacity == 0) {
-            return false;
-        }
 
         if (non_assigned_cells.items.len == 0) {
             return true;
@@ -97,15 +95,17 @@ fn uniqueCandidate(sudoku: Sudoku) bool {
         for (non_assigned_cells.items) |cell| {
             const row = cell.row;
             const col = cell.col;
-            const vals = sudoku.getCellCandidates(row, col) catch |err| {
-                return err;
+            const vals = sudoku.getCellCandidates(row, col) catch {
+                return false;
             };
             for (vals.items) |val| {
                 for (std.enums.values(UnitType)) |unit| {
-                    const unit_cells = sudoku.getUnitCells(row, col, unit);
+                    const unit_cells = sudoku.getUnitCells(row, col, unit) catch {
+                        return false;
+                    };
                     var contained = false;
                     for (unit_cells.items) |unit_cell| {
-                        if (!contained and sudoku.constraints[unit_cell.row][unit_cell.col].get(val - 1)) {
+                        if (!contained and sudoku.constraints[unit_cell.row][unit_cell.col].isSet(val - 1)) {
                             contained = true;
                         }
                     }
@@ -126,12 +126,11 @@ fn uniqueCandidate(sudoku: Sudoku) bool {
     return true;
 }
 
-fn hiddenPair(sudoku: Sudoku) bool {
+fn hiddenPair(sudoku: *Sudoku) bool {
     var non_stable = true;
-    const non_asssigned_cells = sudoku.getNonAssignedCellsWithCardinality();
-    if (non_asssigned_cells.capacity == 0) {
+    const non_asssigned_cells = sudoku.getNonAssignedCellsWithCardinality() catch {
         return false;
-    }
+    } orelse return false;
     if (non_asssigned_cells.items.len == 0) {
         return true;
     }
@@ -139,7 +138,9 @@ fn hiddenPair(sudoku: Sudoku) bool {
     for (non_asssigned_cells.items) |cell| {
         const row = cell.row;
         const col = cell.col;
-        const vals = sudoku.getCellCandidates(row, col);
+        const vals = sudoku.getCellCandidates(row, col) catch {
+            return false;
+        };
 
         if (vals.items.len < 3) {
             continue;
@@ -151,33 +152,41 @@ fn hiddenPair(sudoku: Sudoku) bool {
                 const val2 = vals.items[j];
 
                 for (std.enums.values(UnitType)) |unit| {
-                    const unit_cells = sudoku.getUnitCells(row, col, unit);
-                    var val1_count = 0;
-                    var val2_count = 0;
-                    var pair_count = 0;
+                    const unit_cells = sudoku.getUnitCells(row, col, unit) catch {
+                        return false;
+                    };
+                    var val1_count: u4 = 0;
+                    var val2_count: u4 = 0;
+                    var pair_count: u4 = 0;
                     var unit_cells_with_pairs: std.ArrayList(Pair) = .empty;
-                    defer unit_cells_with_pairs.deinit();
+                    defer unit_cells_with_pairs.deinit(alloc_debug);
 
-                    for (unit_cells) |unit_cell| {
-                        if (sudoku.constraints[unit_cell.row][unit_cell.col].get(val1 - 1) and sudoku.constraints[unit_cell.row][unit_cell.col].get(val2 - 1)) {
+                    for (unit_cells.items) |unit_cell| {
+                        if (sudoku.constraints[unit_cell.row][unit_cell.col].isSet(val1 - 1) and sudoku.constraints[unit_cell.row][unit_cell.col].isSet(val2 - 1)) {
                             val1_count += 1;
                             val2_count += 1;
                             pair_count += 1;
-                            try unit_cells_with_pairs.append(alloc_debug, unit_cell);
-                        } else if (sudoku.constraints[row][col].get(val1 - 1)) {
+                            unit_cells_with_pairs.append(alloc_debug, unit_cell) catch {
+                                return false;
+                            };
+                        } else if (sudoku.constraints[row][col].isSet(val1 - 1)) {
                             val1_count += 1;
-                        } else if (sudoku.constraints[row][col].get(val2 - 1)) {
+                        } else if (sudoku.constraints[row][col].isSet(val2 - 1)) {
                             val2_count += 1;
                         }
                     }
                     if (val1_count == 1 and val2_count == 1 and pair_count == 1) {
-                        const candidates: std.ArrayList(u4) = .empty;
+                        var candidates: std.ArrayList(u4) = .empty;
                         defer candidates.deinit(alloc_debug);
-                        try candidates.append(alloc_debug, val1);
-                        try candidates.append(alloc_debug, val2);
-                        sudoku.setCellCandidate(row, col, candidates);
+                        candidates.append(alloc_debug, val1) catch {
+                            return false;
+                        };
+                        candidates.append(alloc_debug, val2) catch {
+                            return false;
+                        };
+                        sudoku.setCellCandidates(row, col, candidates);
 
-                        const pair = unit_cells_with_pairs[0];
+                        const pair = unit_cells_with_pairs.items[0];
                         sudoku.setCellCandidates(pair.row, pair.col, candidates);
                         non_stable = true;
                     }
@@ -193,12 +202,9 @@ fn hiddenPair(sudoku: Sudoku) bool {
     return true;
 }
 
-fn nakedPair(sudoku: Sudoku) bool {
+fn nakedPair(sudoku: *Sudoku) bool {
     var non_stable = false;
     const non_assigned_cells = sudoku.non_assigned_cells;
-    if (non_assigned_cells.capacity == 0) {
-        return false;
-    }
     if (non_assigned_cells.items.len == 0) {
         return true;
     }
@@ -206,7 +212,9 @@ fn nakedPair(sudoku: Sudoku) bool {
     for (non_assigned_cells.items) |cell| {
         const row = cell.row;
         const col = cell.col;
-        const vals = sudoku.getCellCandidates(row, col);
+        const vals = sudoku.getCellCandidates(row, col) catch {
+            return false;
+        };
         if (vals.items.len != 2) {
             continue;
         }
@@ -214,20 +222,27 @@ fn nakedPair(sudoku: Sudoku) bool {
         const val2 = vals.items[1];
 
         for (std.enums.values(UnitType)) |unit| {
-            const unit_cells = sudoku.getUnitCells(row, col, unit);
+            const unit_cells = sudoku.getUnitCells(row, col, unit) catch {
+                return false;
+            };
             var naked_pair_found = false;
             var unit_cells_with_pair: std.ArrayList(Pair) = .empty;
             for (unit_cells.items) |unit_cell| {
-                if (sudoku.constraints[unit_cell.row][unit_cell.col].get(val1 - 1) and sudoku.constraints[unit_cell.row][unit_cell.col].get(val2 - 1)) {
-                    if (sudoku.getCellCandidates(unit_cell.row, unit_cell.col).items.len == 2) {
+                if (sudoku.constraints[unit_cell.row][unit_cell.col].isSet(val1 - 1) and sudoku.constraints[unit_cell.row][unit_cell.col].isSet(val2 - 1)) {
+                    const candidates = sudoku.getCellCandidates(unit_cell.row, unit_cell.col) catch {
+                        return false;
+                    };
+                    if (candidates.items.len == 2) {
                         naked_pair_found = true;
                     } else {
-                        try unit_cells_with_pair.append(alloc_debug, unit_cell);
+                        unit_cells_with_pair.append(alloc_debug, unit_cell) catch {
+                            return false;
+                        };
                     }
                 }
             }
             if (naked_pair_found) {
-                for (unit_cells_with_pair) |unit_cell| {
+                for (unit_cells_with_pair.items) |unit_cell| {
                     sudoku.removeCellCandidate(unit_cell.row, unit_cell.col, val1);
                     sudoku.removeCellCandidate(unit_cell.row, unit_cell.col, val2);
                 }
@@ -243,37 +258,40 @@ fn nakedPair(sudoku: Sudoku) bool {
     return true;
 }
 
-fn solve(sudoku: Sudoku) ?Sudoku {
+fn solve(sudoku: *Sudoku) ?Sudoku {
     if (sudoku.isSolved()) {
-        return sudoku;
+        return sudoku.*;
     }
     if (reduceCandidates(sudoku) and sudoku.isSolved()) {
-        return sudoku;
+        return sudoku.*;
     }
     if (uniqueCandidate(sudoku) and sudoku.isSolved()) {
-        return sudoku;
+        return sudoku.*;
     }
     if (hiddenPair(sudoku) and sudoku.isSolved()) {
-        return sudoku;
+        return sudoku.*;
     }
     if (nakedPair(sudoku) and sudoku.isSolved()) {
-        return sudoku;
+        return sudoku.*;
     }
 
-    const non_assigned_cells = sudoku.getNonAssignedCellsWithCardinality();
-    if (non_assigned_cells.capacity == 0) {
+    const non_assigned_cells = sudoku.getNonAssignedCellsWithCardinality() catch {
         return null;
-    }
+    } orelse return null;
 
-    std.mem.sort(Triple, non_assigned_cells.items, void, compareCellsByCardinality);
+    std.mem.sort(Triple, non_assigned_cells.items, {}, compareCellsByCardinality);
 
-    for (non_assigned_cells) |cell| {
-        const vals = sudoku.getCellCandidates(cell.row, cell.col);
-        for (vals) |val| {
+    for (non_assigned_cells.items) |cell| {
+        const vals = sudoku.getCellCandidates(cell.row, cell.col) catch {
+            return null;
+        };
+        for (vals.items) |val| {
             if (sudoku.isLegalAssignment(cell.row, cell.col, val)) {
-                var sudoku_new = sudoku.clone();
+                var sudoku_new = sudoku.clone() catch {
+                    return null;
+                };
                 sudoku_new.setCellValue(cell.row, cell.col, val);
-                const solved = solve(sudoku_new);
+                const solved = solve(&sudoku_new);
                 if (solved) |solution| {
                     var solution_mut = solution;
                     if (solution_mut.isSolved()) {
@@ -306,7 +324,7 @@ fn readPuzzle(file: fs.File) Error![10][10]u4 {
             return Error.TooManyRows;
         }
         var nums = std.mem.splitScalar(u8, line, ' ');
-        var col: usize = 0;
+        var col: usize = 1;
         while (nums.next()) |num| {
             if (col > 9) {
                 return Error.TooManyColumns;
@@ -320,12 +338,12 @@ fn readPuzzle(file: fs.File) Error![10][10]u4 {
             puzzle[row][col] = num_int;
             col += 1;
         }
-        if (col < 9) {
+        if (col <= 9) {
             return Error.NotEnoughColumns;
         }
         row += 1;
     }
-    if (row < 9) {
+    if (row <= 9) {
         return Error.NotEnoughRows;
     }
 
@@ -336,7 +354,70 @@ fn compareCellsByCardinality(context: void, a: Triple, b: Triple) bool {
     _ = context;
     return a.cardinality < b.cardinality;
 }
+fn solveSimple(sudoku2: Sudoku) ?Sudoku {
+    // If already solved, just return it.
 
+    var sudoku = sudoku2;
+    if (sudoku.isSolved()) {
+        return sudoku;
+    }
+
+    // Find the first empty cell (value == 0)
+    var row_empty: u4 = 0;
+    var col_empty: u4 = 0;
+    var found_empty = false;
+
+    for (1..10) |r| {
+        for (1..10) |c| {
+            const row: u4 = @intCast(r);
+            const col: u4 = @intCast(c);
+            if (sudoku.puzzle[row][col] == 0) {
+                row_empty = row;
+                col_empty = col;
+                found_empty = true;
+                break;
+            }
+        }
+        if (found_empty) break;
+    }
+
+    // No empty cells -> either solved or invalid
+    if (!found_empty) {
+        return if (sudoku.isSolved()) sudoku else null;
+    }
+
+    // Try all values 1..9 for this cell
+    const row = row_empty;
+    const col = col_empty;
+
+    // We work on a *copy* per branch so we don't need to undo
+    var val: u4 = 1;
+    while (val <= 9) : (val += 1) {
+        if (sudoku.isLegalAssignment(row, col, val)) {
+            // Clone the current sudoku
+            var sudoku_new = sudoku.clone() catch {
+                // Treat OOM as "no solution"
+                return null;
+            };
+
+            // Assign the value
+            sudoku_new.setCellValue(row, col, val);
+
+            // Recurse
+            const solved = solveSimple(sudoku_new);
+            if (solved) |solution| {
+                // Double-check
+                var solution_mut = solution;
+                if (solution_mut.isSolved()) {
+                    return solution_mut;
+                }
+            }
+        }
+    }
+
+    // None of the values worked -> backtrack
+    return null;
+}
 const Error = error{
     InvalidPuzzle,
     NotEnoughColumns,
