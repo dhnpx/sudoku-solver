@@ -9,6 +9,7 @@ const Triple = @import("sudoku.zig").Triple;
 const sudoku_solver = @import("sudoku_solver");
 
 var debug = std.heap.DebugAllocator(.{}){};
+
 const alloc_debug = debug.allocator();
 
 pub fn main() !void {
