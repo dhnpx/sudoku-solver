@@ -9,6 +9,10 @@ const Board_Setup = @import("board_setup.zig");
 
 const sudoku_solver = @import("sudoku_solver");
 
+var backtrack_count: u64 = 0;
+var guess_count: u64 = 0;
+var failed_guess_count: u64 = 0;
+
 var debug = std.heap.DebugAllocator(.{}){};
 
 const alloc_debug = debug.allocator();
@@ -27,17 +31,29 @@ pub fn main() !void {
     
     const filename: [:0]const u8 = "generated\n";
 
+    var timer = try std.time.Timer.start();
+
+    // Use const for simple solve, var for efficient solve with heuristics
     var sudoku = Sudoku.init(filename, puzzle) catch {
         std.debug.print("Error: failed initializing sudoku puzzle\n", .{});
         return;
     };
 
-    
+    // Uncomment the solver you want to use
     const sudoku_solved = solve(&sudoku);
+    //const sudoku_solved = solveSimple(sudoku);
+
+    const elapsed_ns = timer.read();
+
+    const elapsed_ms = @as(f64, @floatFromInt (elapsed_ns)) / 1_000_000.0;
+
+    std.debug.print("\nSolve time: {d:.3} ms\n", .{elapsed_ms});
+
 
     if (sudoku_solved) |solved| {
         std.debug.print("\nSolved puzzle:\n", .{});
         printSudokuGrid(solved.puzzle);
+        std.debug.print("\nGuesses: {}\nFailed Guesses: {}\nBacktracking steps: {}\n", .{ guess_count, failed_guess_count, backtrack_count });
     } else {
         std.debug.print("No Solution\n", .{});
     }
@@ -309,7 +325,13 @@ fn solve(sudoku: *Sudoku) ?Sudoku {
                 };
 
                 sudoku_new.setCellValue(cell.row, cell.col, val);
+
+                guess_count += 1;
                 const solved = solve(&sudoku_new);
+
+                if (solved == null) {
+                    failed_guess_count += 1;
+                }
 
                 if (solved) |solution| {
                     var solution_mut = solution;
@@ -319,6 +341,7 @@ fn solve(sudoku: *Sudoku) ?Sudoku {
                 }
             }
         }
+        backtrack_count += 1;
         return null;
     }
     return null;
@@ -422,8 +445,15 @@ fn solveSimple(sudoku2: Sudoku) ?Sudoku {
             // Assign the value
             sudoku_new.setCellValue(row, col, val);
 
+            guess_count += 1;
+
             // Recurse
             const solved = solveSimple(sudoku_new);
+
+            if (solved == null) {
+                failed_guess_count += 1;
+            }
+
             if (solved) |solution| {
                 // Double-check
                 var solution_mut = solution;
@@ -435,6 +465,7 @@ fn solveSimple(sudoku2: Sudoku) ?Sudoku {
     }
 
     // None of the values worked -> backtrack
+    backtrack_count += 1;
     return null;
 }
 const Error = error{
